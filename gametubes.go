@@ -1,216 +1,421 @@
 package main
 
 import (
-    "encoding/json"
     "fmt"
+    "strings"
     "math/rand"
-    "os"
     "time"
+    "encoding/json"
+    "os"
 )
 
+const MAX = 100
+const MAX_HEWAN = 10
+const namaFile = "datatubes.json"
+
+type Skor struct {
+    TebakAngka   int
+    TebakHewan   int
+    Perkalian    int
+}
+
 type Player struct {
-    Name  string
-    Age   int
-    Score int
+    ID     string
+    Nama   string
+    Umur   int
+    Level  int
+    Skor   Skor
+    Poin   int
+    Item   int
+    Trophy int
 }
 
-var players []Player 
-const dataFile = "datatubes.json"
+type Hewan struct {
+    Nama string
+    Ciri string
+}
 
-func loadPlayers() {
-    file, err := os.Open(dataFile)
-    if err != nil {
-        if os.IsNotExist(err) {
-            players = []Player{}
-            return
+var daftarPlayer [MAX]Player
+var nPlayer int
+
+var daftarHewan [MAX_HEWAN]Hewan
+var nHewan int
+
+func toLower(s string) string {
+    return strings.ToLower(s)
+}
+
+func menuBelanja(idx int) {
+    for {
+        fmt.Println("\n=== MENU BELANJA ===")
+        fmt.Println("1. Beli Item (10 poin)")
+        fmt.Println("2. Beli Trophy (30 poin)")
+        fmt.Println("3. Kembali")
+        var pilih int
+        fmt.Print("Pilih menu: ")
+        fmt.Scan(&pilih)
+        if pilih == 1 {
+            if daftarPlayer[idx].Poin >= 10 {
+                daftarPlayer[idx].Poin -= 10
+                daftarPlayer[idx].Item++
+                fmt.Println("Berhasil beli 1 Item!")
+            } else {
+                fmt.Println("Poin tidak cukup!")
+            }
+        } else if pilih == 2 {
+            if daftarPlayer[idx].Poin >= 30 {
+                daftarPlayer[idx].Poin -= 30
+                daftarPlayer[idx].Trophy++
+                fmt.Println("Berhasil beli 1 Trophy!")
+            } else {
+                fmt.Println("Poin tidak cukup!")
+            }
+        } else if pilih == 3 {
+            break
         }
-        fmt.Println("Gagal membuka file:", err)
-        os.Exit(1)
-    }
-    defer file.Close()
-    decoder := json.NewDecoder(file)
-    err = decoder.Decode(&players)
-    if err != nil {
-        fmt.Println("Gagal decode data pemain:", err)
-        os.Exit(1)
     }
 }
 
-func savePlayers() {
-    file, err := os.Create(dataFile)
+func tambahPlayer(arr *[MAX]Player, n *int, p Player) {
+    if *n < MAX {
+        arr[*n] = p
+        *n++
+    } else {
+        fmt.Println("Data player penuh!")
+    }
+}
+
+func binarySearchID(arr [MAX]Player, n int, id string) int {
+    left, right := 0, n-1
+    for left <= right {
+        mid := (left + right) / 2
+        if arr[mid].ID == id {
+            return mid
+        } else if arr[mid].ID < id {
+            left = mid + 1
+        } else {
+            right = mid - 1
+        }
+    }
+    return -1
+}
+
+func editLevel(arr *[MAX]Player, idx int, level int) {
+    arr[idx].Level = level
+}
+
+func hapusPlayer(arr *[MAX]Player, n *int, idx int) {
+    for i := idx; i < *n-1; i++ {
+        arr[i] = arr[i+1]
+    }
+    *n--
+}
+
+func selectionSortUmur(arr *[MAX]Player, n int, ascending bool) {
+    for i := 0; i < n-1; i++ {
+        idx := i
+        for j := i+1; j < n; j++ {
+            if ascending {
+                if arr[j].Umur < arr[idx].Umur {
+                    idx = j
+                }
+            } else {
+                if arr[j].Umur > arr[idx].Umur {
+                    idx = j
+                }
+            }
+        }
+        arr[i], arr[idx] = arr[idx], arr[i]
+    }
+}
+
+func insertionSortNama(arr *[MAX]Player, n int, ascending bool) {
+    for i := 1; i < n; i++ {
+        temp := arr[i]
+        j := i - 1
+        if ascending {
+            for j >= 0 && arr[j].Nama > temp.Nama {
+                arr[j+1] = arr[j]
+                j--
+            }
+        } else {
+            for j >= 0 && arr[j].Nama < temp.Nama {
+                arr[j+1] = arr[j]
+                j--
+            }
+        }
+        arr[j+1] = temp
+    }
+}
+
+func tampilInfoPlayer(arr [MAX]Player, n int) {
+    fmt.Println("Daftar Player:")
+    for i := 0; i < n; i++ {
+        fmt.Printf("%d. ID: %s | Nama: %s | Umur: %d | Level: %d | Skor Angka: %d | Skor Hewan: %d | Skor Perkalian: %d | Poin: %d | Item: %d | Trophy: %d\n",
+            i+1, arr[i].ID, arr[i].Nama, arr[i].Umur, arr[i].Level, arr[i].Skor.TebakAngka, arr[i].Skor.TebakHewan, arr[i].Skor.Perkalian, arr[i].Poin, arr[i].Item, arr[i].Trophy)
+    }
+}
+
+func gameTebakAngka(idx int) {
+    rand.Seed(time.Now().UnixNano())
+    angka := rand.Intn(10) + 1
+    var tebakan int
+    fmt.Print("Tebak angka 1-10: ")
+    fmt.Scan(&tebakan)
+    if tebakan == angka {
+        fmt.Println("Benar!")
+        daftarPlayer[idx].Skor.TebakAngka++
+        daftarPlayer[idx].Poin += 5
+    } else {
+        fmt.Printf("Salah! Angka: %d\n", angka)
+    }
+}
+
+func gameTebakHewan(idx int) {
+    if nHewan == 0 {
+        fmt.Println("Belum ada data hewan.")
+        return
+    }
+    idxH := rand.Intn(nHewan)
+    fmt.Println("Ciri-ciri hewan:", daftarHewan[idxH].Ciri)
+    var jawaban string
+    fmt.Print("Jawaban: ")
+    fmt.Scan(&jawaban)
+    if toLower(jawaban) == toLower(daftarHewan[idxH].Nama) {
+        fmt.Println("Benar!")
+        daftarPlayer[idx].Skor.TebakHewan++
+        daftarPlayer[idx].Poin += 5
+    } else {
+        fmt.Printf("Salah! Jawaban: %s\n", daftarHewan[idxH].Nama)
+    }
+}
+
+func gamePerkalian(idx int) {
+    rand.Seed(time.Now().UnixNano())
+    skor := 0
+    for i := 1; i <= 3; i++ {
+        a := rand.Intn(10) + 1
+        b := rand.Intn(10) + 1
+        var jawab int
+        fmt.Printf("Soal %d: %d x %d = ", i, a, b)
+        fmt.Scan(&jawab)
+        if jawab == a*b {
+            fmt.Println("Benar!")
+            skor++
+            daftarPlayer[idx].Poin += 3
+        } else {
+            fmt.Printf("Salah! Jawaban: %d\n", a*b)
+        }
+    }
+    daftarPlayer[idx].Skor.Perkalian += skor
+}
+
+func tambahHewan(arr *[MAX_HEWAN]Hewan, n *int, nama, ciri string) {
+    if *n < MAX_HEWAN {
+        arr[*n] = Hewan{Nama: nama, Ciri: ciri}
+        *n++
+    }
+}
+
+func skorTotal(p Player) int {
+    return p.Skor.TebakAngka + p.Skor.TebakHewan + p.Skor.Perkalian
+}
+
+func selectionSortSkor(arr *[MAX]Player, n int) {
+    for i := 0; i < n-1; i++ {
+        idx := i
+        for j := i+1; j < n; j++ {
+            if skorTotal(arr[j]) > skorTotal(arr[idx]) {
+                idx = j
+            }
+        }
+        arr[i], arr[idx] = arr[idx], arr[i]
+    }
+}
+
+func insertionSortID(arr *[MAX]Player, n int) {
+    for i := 1; i < n; i++ {
+        temp := arr[i]
+        j := i - 1
+        for j >= 0 && arr[j].ID > temp.ID {
+            arr[j+1] = arr[j]
+            j--
+        }
+        arr[j+1] = temp
+    }
+}
+
+func tampilRangking(arr [MAX]Player, n int) {
+    fmt.Println("\n=== RANGKING PLAYER BERDASARKAN SKOR TOTAL ===")
+    for i := 0; i < n; i++ {
+        fmt.Printf("%d. %s (ID: %s) | Skor Total: %d | Angka: %d | Hewan: %d | Perkalian: %d\n",
+            i+1, arr[i].Nama, arr[i].ID, skorTotal(arr[i]), arr[i].Skor.TebakAngka, arr[i].Skor.TebakHewan, arr[i].Skor.Perkalian)
+    }
+}
+
+func cariPlayerByID(arr *[MAX]Player, n int) {
+    insertionSortID(arr, n)
+    var id string
+    fmt.Print("Masukkan ID player yang dicari: ")
+    fmt.Scan(&id)
+    idx := binarySearchID(*arr, n, id)
+    if idx != -1 {
+        fmt.Printf("Ditemukan: %s | Umur: %d | Level: %d | Skor Angka: %d | Skor Hewan: %d | Skor Perkalian: %d | Poin: %d | Item: %d | Trophy: %d\n",
+            arr[idx].Nama, arr[idx].Umur, arr[idx].Level, arr[idx].Skor.TebakAngka, arr[idx].Skor.TebakHewan, arr[idx].Skor.Perkalian, arr[idx].Poin, arr[idx].Item, arr[idx].Trophy)
+    } else {
+        fmt.Println("Player tidak ditemukan.")
+    }
+}
+
+func simpanPlayer(arr [MAX]Player, n int) {
+    temp := make([]Player, n)
+    for i := 0; i < n; i++ {
+        temp[i] = arr[i]
+    }
+    file, err := os.Create(namaFile)
     if err != nil {
         fmt.Println("Gagal menyimpan file:", err)
         return
     }
     defer file.Close()
     encoder := json.NewEncoder(file)
-    err = encoder.Encode(players)
+    err = encoder.Encode(temp)
     if err != nil {
         fmt.Println("Gagal encode data pemain:", err)
     }
 }
 
-func bubbleSortByScore(players []Player) {
-    n := len(players)
-    for i := 0; i < n-1; i++ {
-        for j := 0; j < n-i-1; j++ {
-            if players[j].Score < players[j+1].Score {
-                players[j], players[j+1] = players[j+1], players[j]
-            }
+func muatPlayer(arr *[MAX]Player, n *int) {
+    file, err := os.Open(namaFile)
+    if err != nil {
+        if os.IsNotExist(err) {
+            *n = 0
+            return
         }
+        fmt.Println("Gagal membuka file:", err)
+        os.Exit(1)
     }
-}
-
-func isSorted(arr []int) bool {
-    for i := 0; i < len(arr)-1; i++ {
-        if arr[i] > arr[i+1] {
-            return false
+    defer file.Close()
+    var temp []Player
+    decoder := json.NewDecoder(file)
+    err = decoder.Decode(&temp)
+    if err != nil {
+        if err.Error() == "EOF" {
+            *n = 0
+            return
         }
+        fmt.Println("Gagal decode data pemain:", err)
+        os.Exit(1)
     }
-    return true
-}
-
-func shuffle(arr []int) {
-    for i := range arr {
-        j := rand.Intn(len(arr))
-        arr[i], arr[j] = arr[j], arr[i]
+    *n = 0
+    for i := 0; i < len(temp) && i < MAX; i++ {
+        arr[i] = temp[i]
+        *n++
     }
-}
-
-func bogoSort(arr []int) float64 {
-    start := time.Now()
-    for !isSorted(arr) {
-        shuffle(arr)
-    }
-    return time.Since(start).Seconds()
-}
-
-func addPlayer() {
-    var name string
-    var age int
-    fmt.Print("Masukkan Nama Pemain: ")
-    fmt.Scan(&name)
-    fmt.Print("Masukkan Umur Pemain: ")
-    fmt.Scan(&age)
-    players = append(players, Player{Name: name, Age: age, Score: 0})
-    savePlayers()
-}
-
-func removePlayer() {
-    if len(players) == 0 {
-        fmt.Println("Belum ada data pemain.")
-        return
-    }
-    fmt.Println("Pilih nomor pemain yang ingin dihapus:")
-    for i, p := range players {
-        fmt.Printf("%d. %s - %d tahun (Skor: %d)\n", i+1, p.Name, p.Age, p.Score)
-    }
-    var idx int
-    fmt.Print("Nomor pemain: ")
-    fmt.Scan(&idx)
-    if idx < 1 || idx > len(players) {
-        fmt.Println("Nomor tidak valid.")
-        return
-    }
-    players = append(players[:idx-1], players[idx:]...)
-    fmt.Println("Pemain berhasil dihapus.")
-    savePlayers()
-}
-
-func showPlayers() {
-    if len(players) == 0 {
-        fmt.Println("Belum ada data pemain.")
-        return
-    }
-    bubbleSortByScore(players)
-    fmt.Println("\nDaftar Pemain (Skor Tertinggi ke Terendah):")
-    for _, p := range players {
-        fmt.Printf("%s - %d tahun (Skor: %d)\n", p.Name, p.Age, p.Score)
-    }
-}
-
-func playGame() {
-    var numArray int
-    fmt.Print("Masukkan jumlah angka yang ingin diurutkan dengan Bogo Sort: ")
-    fmt.Scan(&numArray)
-
-    var arr []int
-    fmt.Println("Masukkan angka-angka:")
-    for i := 0; i < numArray; i++ {
-        var num int
-        fmt.Scan(&num)
-        arr = append(arr, num)
-    }
-
-    var guesses []float64
-    fmt.Println("\nSetiap pemain harus menebak waktu sorting:")
-    for _, p := range players {
-        var guess float64
-        fmt.Printf("%s, tebak berapa detik Bogo Sort akan selesai: ", p.Name)
-        fmt.Scan(&guess)
-        guesses = append(guesses, guess)
-    }
-
-    elapsed := bogoSort(arr)
-
-    fmt.Printf("\nBogo Sort selesai dalam %.3f detik.\n", elapsed)
-
-    winners := []int{}
-    for i, guess := range guesses {
-        if guess >= elapsed-0.5 && guess <= elapsed+0.5 {
-            winners = append(winners, i)
-        }
-    }
-
-    if len(winners) > 0 {
-        fmt.Print("Pemenang: ")
-        for _, idx := range winners {
-            fmt.Print(players[idx].Name, " ")
-            players[idx].Score++ 
-        }
-        fmt.Println()
-        savePlayers()
-    } else {
-        fmt.Println("Tidak ada pemenang kali ini! Coba lagi.")
-    }
-
-    fmt.Println("Array setelah diurutkan:", arr)
 }
 
 func main() {
-    rand.Seed(time.Now().UnixNano())
-    loadPlayers()
+   muatPlayer(&daftarPlayer, &nPlayer)
+    rand.Seed(time.Now().UnixNano()) 
+    tambahHewan(&daftarHewan, &nHewan, "Ayam", "Berkaki dua, unggas, bersayap, bertelur, sering dipelihara")
+    tambahHewan(&daftarHewan, &nHewan, "Kucing", "Berkaki empat, berbulu, sering dipelihara, suka mengeong")
+    tambahHewan(&daftarHewan, &nHewan, "Bebek", "Berkaki dua, unggas, bersayap, suka berenang, bertelur")
+    tambahHewan(&daftarHewan, &nHewan, "Gajah", "Berkaki empat, bertubuh besar, belalai panjang, bertelinga lebar")
+    tambahHewan(&daftarHewan, &nHewan, "Singa", "Berkaki empat, raja hutan, berbulu coklat, jantan berjanggut tebal")
+    tambahHewan(&daftarHewan, &nHewan, "Lumba-lumba", "Hidup di laut, mamalia, cerdas, suka melompat di air")
+    tambahHewan(&daftarHewan, &nHewan, "Nyamuk", "Bertubuh kecil, bersayap, suka menghisap darah, sering bersuara mendengung")
+    tambahHewan(&daftarHewan, &nHewan, "Ular", "Bertubuh panjang, tidak berkaki, melata, ada yang berbisa")
+ 
+    var menu int
     for {
-        fmt.Println("\n--- MENU UTAMA ---")
-        fmt.Println("1. Masukkan Data Pemain")
-        fmt.Println("2. Lihat Semua Data Pemain")
-        fmt.Println("3. Hapus Pemain")
-        fmt.Println("4. Mulai Permainan Tebakan Bogo Sort")
-        fmt.Println("5. Keluar Program")
-        fmt.Print("Pilih opsi: ")
+        fmt.Println("\n=== MENU UTAMA ===")
+        fmt.Println("1. Tambah Player")
+        fmt.Println("2. Info Player")
+        fmt.Println("3. Hapus Player")
+        fmt.Println("4. Main Game")
+        fmt.Println("5. Urutkan Player (Umur/Nama)")
+        fmt.Println("6. Rangking Player (Skor Total Descending)")
+        fmt.Println("7. Cari Player (Binary Search ID)")
+        fmt.Println("8. Belanja Item/Trophy")
+        fmt.Println("9. Akhiri Program")
+        fmt.Print("Pilih menu: ")
+        fmt.Scan(&menu)
 
-        var choice int
-        fmt.Scan(&choice)
-
-        switch choice {
-        case 1:
-            addPlayer()
-        case 2:
-            showPlayers()
-        case 3:
-            removePlayer()
-        case 4:
-            if len(players) == 0 {
-                fmt.Println("Tambahkan pemain terlebih dahulu sebelum bermain!")
+        if menu == 1 {
+            var p Player
+            fmt.Print("ID: "); fmt.Scan(&p.ID)
+            fmt.Print("Nama: "); fmt.Scan(&p.Nama)
+            fmt.Print("Umur: "); fmt.Scan(&p.Umur)
+            p.Level = 1
+            p.Skor = Skor{}
+            p.Poin = 0
+            p.Item = 0
+            p.Trophy = 0
+            tambahPlayer(&daftarPlayer, &nPlayer, p)
+            simpanPlayer(daftarPlayer, nPlayer)
+        } else if menu == 2 {
+            tampilInfoPlayer(daftarPlayer, nPlayer)
+        } else if menu == 3 {
+            var id string
+            fmt.Print("ID player yang ingin dihapus: "); fmt.Scan(&id)
+            idx := binarySearchID(daftarPlayer, nPlayer, id)
+            if idx != -1 {
+                hapusPlayer(&daftarPlayer, &nPlayer, idx)
+                fmt.Println("Player dihapus.")
+                simpanPlayer(daftarPlayer, nPlayer)
             } else {
-                playGame()
+                fmt.Println("Tidak ditemukan.")
             }
-        case 5:
-            savePlayers()
-            fmt.Println("Terima kasih telah bermain! ")
+        } else if menu == 4 {
+            var id string
+            fmt.Print("ID player: "); fmt.Scan(&id)
+            idx := binarySearchID(daftarPlayer, nPlayer, id)
+            if idx != -1 {
+                fmt.Println("Pilih Game: 1.Tebak Angka 2.Tebak Hewan 3.Perkalian")
+                var g int
+                fmt.Scan(&g)
+                if g == 1 {
+                    gameTebakAngka(idx)
+                } else if g == 2 {
+                    gameTebakHewan(idx)
+                } else if g == 3 {
+                    gamePerkalian(idx)
+                }
+                simpanPlayer(daftarPlayer, nPlayer)
+            } else {
+                fmt.Println("Player tidak ditemukan.")
+            }
+        } else if menu == 5 {
+            fmt.Println("1. Selection Sort Umur")
+            fmt.Println("2. Insertion Sort Nama")
+            var sortMenu, asc int
+            fmt.Print("Pilih: "); fmt.Scan(&sortMenu)
+            fmt.Print("Ascending (1) / Descending (0): "); fmt.Scan(&asc)
+            if sortMenu == 1 {
+                selectionSortUmur(&daftarPlayer, nPlayer, asc == 1)
+            } else if sortMenu == 2 {
+                insertionSortNama(&daftarPlayer, nPlayer, asc == 1)
+            }
+            fmt.Println("Data diurutkan.")
+        } else if menu == 6 {
+            selectionSortSkor(&daftarPlayer, nPlayer)
+            tampilRangking(daftarPlayer, nPlayer)
+        } else if menu == 7 {
+            cariPlayerByID(&daftarPlayer, nPlayer)
+        } else if menu == 9 {
+            simpanPlayer(daftarPlayer, nPlayer)
+            fmt.Println("Terima kasih telah bermain!")
             return
-        default:
-            fmt.Println("Opsi tidak valid. Coba lagi.")
+        } else if menu == 8 {
+            var id string
+            fmt.Print("ID player: "); fmt.Scan(&id)
+            idx := binarySearchID(daftarPlayer, nPlayer, id)
+            if idx != -1 {
+                menuBelanja(idx)
+                simpanPlayer(daftarPlayer, nPlayer)
+            } else {
+                fmt.Println("Player tidak ditemukan.")
+            }
         }
     }
 }
