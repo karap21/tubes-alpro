@@ -100,9 +100,6 @@ func binarySearchID(arr [MAX]Player, n int, id string) int {
     return -1
 }
 
-func editLevel(arr *[MAX]Player, idx int, level int) {
-    arr[idx].Level = level
-}
 
 func hapusPlayer(arr *[MAX]Player, n *int, idx int) {
     for i := idx; i < *n-1; i++ {
