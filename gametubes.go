@@ -46,12 +46,12 @@ func toLower(s string) string {
 }
 
 func menuBelanja(idx int) {
-    for {
+    var pilih int
+    for pilih != 3 { 
         fmt.Println("\n=== MENU BELANJA ===")
         fmt.Println("1. Beli Item (10 poin)")
         fmt.Println("2. Beli Trophy (30 poin)")
         fmt.Println("3. Kembali")
-        var pilih int
         fmt.Print("Pilih menu: ")
         fmt.Scan(&pilih)
         if pilih == 1 {
@@ -70,12 +70,11 @@ func menuBelanja(idx int) {
             } else {
                 fmt.Println("Poin tidak cukup!")
             }
-        } else if pilih == 3 {
-            break
+        } else if pilih != 3 { 
+            fmt.Println("Pilihan tidak valid.")
         }
     }
 }
-
 func tambahPlayer(arr *[MAX]Player, n *int, p Player) {
     if *n < MAX {
         arr[*n] = p
