@@ -416,3 +416,5 @@ func main() {
         }
     }
 }
+
+//kuda makan tahu 2 kali sehari
